@@ -10,5 +10,5 @@ done
 echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
 # must build the image from dist directory
-docker buildx build --platform linux/amd64,linux/arm64 --push $DOCKER_TAGS -f ./docker/build/x86_64/Dockerfile-CUDA .
+docker buildx build --push $DOCKER_TAGS -f ./docker/build/x86_64/Dockerfile-CUDA .
 
