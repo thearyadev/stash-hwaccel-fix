@@ -333,11 +333,16 @@ func (s *runningStream) makeStreamArgs(sm *StreamManager, segment int) Args {
 	args := Args{"-hide_banner"}
 	args = args.LogLevel(LogLevelError)
 
+	sourceCodec := s.vf.VideoCodec
 	codec := HLSGetCodec(sm, s.streamType.Name)
 
 	fullhw := sm.config.GetTranscodeHardwareAcceleration() && sm.encoder.hwCanFullHWTranscode(sm.context, codec, s.vf, s.maxTranscodeSize)
 	args = sm.encoder.hwDeviceInit(args, codec, fullhw)
 	args = append(args, extraInputArgs...)
+	if (sourceCodec == "av1"){
+		av1DecodeArgs := []string{"-c:v", "av1_cuvid"}
+		args = append(args, av1DecodeArgs...)
+	}
 
 	if segment > 0 {
 		args = args.Seek(float64(segment * segmentLength))
@@ -713,6 +718,7 @@ func (sm *StreamManager) startTranscode(stream *runningStream, segment int, done
 		done <- err
 		return
 	}
+	logger.Debug(cmd)
 
 	tp := &transcodeProcess{
 		cmd:         cmd,
