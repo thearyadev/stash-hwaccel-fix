@@ -1,3 +1,20 @@
+# thearyadev/stash-hwaccel-fix
+
+makes minor changes to have better hwaccel handling
+
+currently complete:
+- allow user to force AV1 decoder via the `FORCE_AV1_HW_DECOER_METHOD` environment variable set to `av1_cuvid` for CUDA or `av1_vaapi` for intel (or whatever decoder you want)
+- stash cuda-capable docker image
+
+todo:
+- generate previews with gpu decode 
+- support for in container vaapi (not sure if it is, haven't tested)
+
+image (dockerhub): `thearyadev0/stash-hwaccel-fix:<latest/v0.28.*****`
+built with Dockerfile at `./docker/build/x86_64/Dockerfile-CUDA`
+
+---
+
 # Stash
 
 [![Build](https://github.com/stashapp/stash/actions/workflows/build.yml/badge.svg?branch=develop&event=push)](https://github.com/stashapp/stash/actions/workflows/build.yml)
