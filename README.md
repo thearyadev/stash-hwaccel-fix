@@ -4,15 +4,17 @@ makes minor changes to have better hwaccel handling
 
 currently complete:
 - allow user to force AV1 decoder via the `FORCE_AV1_HW_DECOER_METHOD` environment variable set to `av1_cuvid` for CUDA or `av1_vaapi` for intel (or whatever decoder you want)
+    - applies only if the source video is av1
+    - stash does not hwdecode av1 video by default, this requires a c:v ffmpeg flag using the av1_* 
 - stash cuda-capable docker image
 
 todo:
 - generate previews with gpu decode 
-- support for in container vaapi (not sure if it is, haven't tested)
 
-image (dockerhub): `thearyadev0/stash-hwaccel-fix:<latest/v0.28.*****`
+image (dockerhub): `thearyadev0/stash-hwaccel-fix:<latest/v0.29.1`
 built with Dockerfile at `./docker/build/x86_64/Dockerfile-CUDA`
-
+only the x86_64 image will be built and published. 
+merge upstream during release periods.
 ---
 
 # Stash
