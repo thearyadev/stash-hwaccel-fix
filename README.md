@@ -12,9 +12,12 @@ todo:
 - generate previews with gpu decode 
 
 image (dockerhub): `thearyadev0/stash-hwaccel-fix:<latest/v0.29.1`
+
 built with Dockerfile at `./docker/build/x86_64/Dockerfile-CUDA`
+
 only the x86_64 image will be built and published. 
 merge upstream during release periods.
+
 ---
 
 # Stash
