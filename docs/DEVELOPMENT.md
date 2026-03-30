@@ -5,7 +5,8 @@
 * [Go](https://golang.org/dl/)
 * [GolangCI](https://golangci-lint.run/) - A meta-linter which runs several linters in parallel
   * To install, follow the [local installation instructions](https://golangci-lint.run/welcome/install/#local-installation)
-* [Yarn](https://yarnpkg.com/en/docs/install) - Yarn package manager
+* [nodejs](https://nodejs.org/en/download) - nodejs runtime
+  * corepack/[pnpm](https://pnpm.io/installation) - nodejs package manager (included with nodejs)
 
 ## Environment
 
@@ -22,21 +23,21 @@ NOTE: The `make` command in Windows will be `mingw32-make` with MinGW. For examp
 ### macOS
 
 1. If you don't have it already, install the [Homebrew package manager](https://brew.sh).
-2. Install dependencies: `brew install go git yarn gcc make node ffmpeg`
+2. Install dependencies: `brew install go git gcc make node ffmpeg`
 
 ### Linux
 
 #### Arch Linux
 
-1. Install dependencies: `sudo pacman -S go git yarn gcc make nodejs ffmpeg --needed`
+1. Install dependencies: `sudo pacman -S go git gcc make nodejs ffmpeg --needed`
 
 #### Ubuntu
 
-1. Install dependencies: `sudo apt-get install golang git yarnpkg gcc nodejs ffmpeg -y`
+1. Install dependencies: `sudo apt-get install golang git gcc nodejs ffmpeg -y`
 
 ### OpenBSD
 
-1. Install dependencies `doas pkg_add gmake go git yarn node cmake ffmpeg`
+1. Install dependencies `doas pkg_add gmake go git node cmake ffmpeg`
 2. Follow the instructions below to build a release, but replace the final step `make build-release` with `gmake flags-release stash`, to [avoid the PIE buildmode](https://github.com/golang/go/issues/59866).
 
 NOTE: The `make` command in OpenBSD will be `gmake`. For example, `make pre-ui` will be `gmake pre-ui`.
@@ -117,8 +118,8 @@ This project uses a modification of the [CI-GoReleaser](https://github.com/bep/d
 To cross-compile the app yourself:
 
 1. Run `make pre-ui`, `make generate` and `make ui` outside the container, to generate files and build the UI.
-2. Pull the latest compiler image from Docker Hub: `docker pull stashapp/compiler`
-3. Run `docker run --rm --mount type=bind,source="$(pwd)",target=/stash -w /stash -it stashapp/compiler /bin/bash` to open a shell inside the container.
+2. Pull the latest compiler image from GHCR: `docker pull ghcr.io/stashapp/compiler`
+3. Run `docker run --rm --mount type=bind,source="$(pwd)",target=/stash -w /stash -it ghcr.io/stashapp/compiler /bin/bash` to open a shell inside the container.
 4. From inside the container, run `make build-cc-all` to build for all platforms, or run `make build-cc-{platform}` to build for a specific platform (have a look at the `Makefile` for the list of targets).
 5. You will find the compiled binaries in `dist/`.
 

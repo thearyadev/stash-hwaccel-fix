@@ -15,9 +15,10 @@ import {
   useStudioCreate,
   useStudioUpdate,
   useTagCreate,
+  useTagUpdate,
 } from "src/core/StashService";
 import { useToast } from "src/hooks/Toast";
-import { ConfigurationContext } from "src/hooks/Config";
+import { useConfigurationContext } from "src/hooks/Config";
 import { ITaggerSource, SCRAPER_PREFIX, STASH_BOX_PREFIX } from "./constants";
 import { errorToString } from "src/utils";
 import { mergeStudioStashIDs } from "./utils";
@@ -55,6 +56,10 @@ export interface ITaggerContextState {
   ) => Promise<string | undefined>;
   updateStudio: (studio: GQL.StudioUpdateInput) => Promise<void>;
   linkStudio: (studio: GQL.ScrapedStudio, studioID: string) => Promise<void>;
+  updateTag: (
+    tag: GQL.ScrapedTag,
+    updateInput: GQL.TagUpdateInput
+  ) => Promise<void>;
   resolveScene: (
     sceneID: string,
     index: number,
@@ -92,6 +97,7 @@ export const TaggerStateContext = React.createContext<ITaggerContextState>({
   createNewStudio: dummyValFn,
   updateStudio: dummyFn,
   linkStudio: dummyFn,
+  updateTag: dummyFn,
   resolveScene: dummyFn,
   submitFingerprints: dummyFn,
   pendingFingerprints: [],
@@ -117,7 +123,7 @@ export const TaggerContext: React.FC = ({ children }) => {
 
   const stopping = useRef(false);
 
-  const { configuration: stashConfig } = React.useContext(ConfigurationContext);
+  const { configuration: stashConfig } = useConfigurationContext();
   const { config, setConfig } = useTaggerConfig();
 
   const Scrapers = useListSceneScrapers();
@@ -129,6 +135,7 @@ export const TaggerContext: React.FC = ({ children }) => {
   const [createStudio] = useStudioCreate();
   const [updateStudio] = useStudioUpdate();
   const [updateScene] = useSceneUpdate();
+  const [updateTag] = useTagUpdate();
 
   useEffect(() => {
     if (!stashConfig || !Scrapers.data) {
@@ -173,6 +180,7 @@ export const TaggerContext: React.FC = ({ children }) => {
     setSources(stashboxSources.concat(scraperSources));
   }, [Scrapers.data, stashConfig]);
 
+  // set the current source on load
   useEffect(() => {
     if (!sources.length || currentSource) {
       return;
@@ -191,8 +199,13 @@ export const TaggerContext: React.FC = ({ children }) => {
     setCurrentSource(sources[0]);
   }, [sources, currentSource, config]);
 
+  // clear the search results when the source changes
   useEffect(() => {
     setSearchResults({});
+  }, [currentSource]);
+
+  // keep selected endpoint in config in sync with current source
+  useEffect(() => {
     const selectedEndpoint = currentSource?.sourceInput.stash_box_endpoint;
     if (selectedEndpoint && selectedEndpoint !== config.selectedEndpoint) {
       setConfig({
@@ -587,7 +600,12 @@ export const TaggerContext: React.FC = ({ children }) => {
         return {
           ...r,
           performers: r.performers.map((p) => {
-            if (p.name === performer.name) {
+            // Match by remote_site_id if available, otherwise fall back to name
+            const matches = performer.remote_site_id
+              ? p.remote_site_id === performer.remote_site_id
+              : p.name === performer.name;
+
+            if (matches) {
               return {
                 ...p,
                 stored_id: performerID,
@@ -849,6 +867,50 @@ export const TaggerContext: React.FC = ({ children }) => {
     }
   }
 
+  async function updateExistingTag(
+    tag: GQL.ScrapedTag,
+    updateInput: GQL.TagUpdateInput
+  ) {
+    const hasRemoteID = !!tag.remote_site_id;
+
+    try {
+      await updateTag({
+        variables: {
+          input: updateInput,
+        },
+      });
+
+      const newSearchResults = mapResults((r) => {
+        if (!r.tags) {
+          return r;
+        }
+
+        return {
+          ...r,
+          tags: r.tags.map((t) => {
+            if (
+              (hasRemoteID && t.remote_site_id === tag.remote_site_id) ||
+              (!hasRemoteID && t.name === tag.name)
+            ) {
+              return {
+                ...t,
+                stored_id: updateInput.id,
+              };
+            }
+
+            return t;
+          }),
+        };
+      });
+
+      setSearchResults(newSearchResults);
+
+      Toast.success(<span>Updated tag</span>);
+    } catch (e) {
+      Toast.error(e);
+    }
+  }
+
   return (
     <TaggerStateContext.Provider
       value={{
@@ -873,6 +935,7 @@ export const TaggerContext: React.FC = ({ children }) => {
         createNewStudio,
         updateStudio: updateExistingStudio,
         linkStudio,
+        updateTag: updateExistingTag,
         resolveScene,
         saveScene,
         submitFingerprints,

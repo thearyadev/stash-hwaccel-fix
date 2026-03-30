@@ -14,12 +14,14 @@ var (
 	performersImagesJoinTable = goqu.T(performersImagesTable)
 	imagesFilesJoinTable      = goqu.T(imagesFilesTable)
 	imagesURLsJoinTable       = goqu.T(imagesURLsTable)
+	imagesCustomFieldsTable   = goqu.T("image_custom_fields")
 
 	galleriesFilesJoinTable      = goqu.T(galleriesFilesTable)
 	galleriesTagsJoinTable       = goqu.T(galleriesTagsTable)
 	performersGalleriesJoinTable = goqu.T(performersGalleriesTable)
 	galleriesScenesJoinTable     = goqu.T(galleriesScenesTable)
 	galleriesURLsJoinTable       = goqu.T(galleriesURLsTable)
+	galleriesCustomFieldsTable   = goqu.T("gallery_custom_fields")
 
 	scenesFilesJoinTable      = goqu.T(scenesFilesTable)
 	scenesTagsJoinTable       = goqu.T(scenesTagsTable)
@@ -27,6 +29,7 @@ var (
 	scenesStashIDsJoinTable   = goqu.T("scene_stash_ids")
 	scenesGroupsJoinTable     = goqu.T(groupsScenesTable)
 	scenesURLsJoinTable       = goqu.T(scenesURLsTable)
+	scenesCustomFieldsTable   = goqu.T("scene_custom_fields")
 
 	sceneMarkersTagsJoinTable = goqu.T(sceneMarkersTagsTable)
 
@@ -37,15 +40,20 @@ var (
 	performersCustomFieldsTable = goqu.T("performer_custom_fields")
 
 	studiosAliasesJoinTable  = goqu.T(studioAliasesTable)
+	studiosURLsJoinTable     = goqu.T(studioURLsTable)
 	studiosTagsJoinTable     = goqu.T(studiosTagsTable)
 	studiosStashIDsJoinTable = goqu.T("studio_stash_ids")
+	studiosCustomFieldsTable = goqu.T("studio_custom_fields")
 
 	groupsURLsJoinTable     = goqu.T(groupURLsTable)
 	groupsTagsJoinTable     = goqu.T(groupsTagsTable)
 	groupRelationsJoinTable = goqu.T(groupRelationsTable)
+	groupsCustomFieldsTable = goqu.T("group_custom_fields")
 
 	tagsAliasesJoinTable  = goqu.T(tagAliasesTable)
 	tagRelationsJoinTable = goqu.T(tagRelationsTable)
+	tagsStashIDsJoinTable = goqu.T("tag_stash_ids")
+	tagsCustomFieldsTable = goqu.T("tag_custom_fields")
 )
 
 var (
@@ -319,6 +327,14 @@ var (
 		stringColumn: studiosAliasesJoinTable.Col(studioAliasColumn),
 	}
 
+	studiosURLsTableMgr = &orderedValueTable[string]{
+		table: table{
+			table:    studiosURLsJoinTable,
+			idColumn: studiosURLsJoinTable.Col(studioIDColumn),
+		},
+		valueColumn: studiosURLsJoinTable.Col(studioURLColumn),
+	}
+
 	studiosTagsTableMgr = &joinTable{
 		table: table{
 			table:    studiosTagsJoinTable,
@@ -366,6 +382,13 @@ var (
 	}
 
 	tagsChildTagsTableMgr = *tagsParentTagsTableMgr.invert()
+
+	tagsStashIDsTableMgr = &stashIDTable{
+		table: table{
+			table:    tagsStashIDsJoinTable,
+			idColumn: tagsStashIDsJoinTable.Col(tagIDColumn),
+		},
+	}
 )
 
 var (

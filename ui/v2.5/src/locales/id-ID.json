@@ -73,8 +73,6 @@
         "logout": "Keluar",
         "make_primary": "Jadikan Utama",
         "merge": "Gabung",
-        "merge_from": "Gabung dari",
-        "merge_into": "Gabung ke",
         "migrate_blobs": "Migrasi Blob",
         "next_action": "Selanjutnya",
         "not_running": "tidak berjalan",
@@ -163,7 +161,9 @@
             "close": "Tutup bilah samping",
             "open": "Buka bilah samping",
             "toggle": "Alihkan bilah samping"
-        }
+        },
+        "add_stash_id": "Tambah ID Stash",
+        "create_new": "Buat Baru"
     },
     "circumcised_types": {
         "CUT": "Disunat",
@@ -238,11 +238,13 @@
             "set_cover_label": "Tetapkan gambar cover adegan",
             "set_tag_label": "Tetapkan tag",
             "set_tag_desc": "Lampirkan tag ke adegan, baik dengan menimpa atau menggabungkan dengan tag yang sudah ada.",
-            "show_male_desc": "Baeralih apakah pemain pria dapat diberi tag.",
-            "show_male_label": "Tampilkan pemain pria",
             "source": "Sumber",
             "errors": {
                 "blacklist_duplicate": "Duplikat item daftar hitam"
+            },
+            "performer_genders": {
+                "heading": "Kelamin pemain",
+                "description": "Pemain dengan kelamin ini akan ditampilkan ketika memberi tanda pada adegan."
             }
         },
         "results": {
@@ -524,9 +526,7 @@
             "latest_version": "Versi Mutakhir",
             "release_date": "Tanggal rilis:",
             "new_version_notice": "[BARU]",
-            "stash_discord": "Gabung ke saluran {url} kami",
             "stash_home": "Beranda Stash di {url}",
-            "stash_open_collective": "Dukung kami melalui {url}",
             "version": "Versi",
             "check_for_new_version": "Periksa versi terbaru",
             "build_time": "Waktu dibangun::",
@@ -598,10 +598,6 @@
             "page_header": "Halaman {page} / {total}"
         },
         "merge": {
-            "destination": "Destinasi",
-            "source": "Sumber"
-        },
-        "merge_tags": {
             "destination": "Destinasi",
             "source": "Sumber"
         },
@@ -756,7 +752,6 @@
         "generic": "Memuat…"
     },
     "tag": "Tag",
-    "o_counter": "Penghitung Crot",
     "operations": "Operasi",
     "organized": "Terorganisir",
     "orientation": "Orientasi",

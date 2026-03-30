@@ -12,8 +12,11 @@ import {
   defaultRatingStarPrecision,
   defaultRatingSystemOptions,
 } from "src/utils/rating";
-import { ConfigurationContext } from "src/hooks/Config";
-import { RatingCriterion } from "src/models/list-filter/criteria/rating";
+import { useConfigurationContext } from "src/hooks/Config";
+import {
+  RatingCriterion,
+  RatingCriterionOption,
+} from "src/models/list-filter/criteria/rating";
 import { ListFilterModel } from "src/models/list-filter/filter";
 import { Option, SidebarListFilter } from "./SidebarListFilter";
 
@@ -74,7 +77,7 @@ export const RatingFilter: React.FC<IRatingFilterProps> = ({
 
 interface ISidebarFilter {
   title?: React.ReactNode;
-  option: CriterionOption;
+  option?: CriterionOption;
   filter: ListFilterModel;
   setFilter: (f: ListFilterModel) => void;
   sectionID?: string;
@@ -84,11 +87,11 @@ const any = "any";
 const none = "none";
 
 export const SidebarRatingFilter: React.FC<ISidebarFilter> = ({
-  title,
-  option,
+  title = <FormattedMessage id="rating" />,
+  option = RatingCriterionOption,
   filter,
   setFilter,
-  sectionID,
+  sectionID = "rating",
 }) => {
   const intl = useIntl();
 
@@ -117,7 +120,7 @@ export const SidebarRatingFilter: React.FC<ISidebarFilter> = ({
     [noneLabel]
   );
 
-  const { configuration: config } = React.useContext(ConfigurationContext);
+  const { configuration: config } = useConfigurationContext();
   const ratingSystemOptions =
     config?.ui.ratingSystemOptions ?? defaultRatingSystemOptions;
 
@@ -193,6 +196,7 @@ export const SidebarRatingFilter: React.FC<ISidebarFilter> = ({
   return (
     <>
       <SidebarListFilter
+        data-type={option.type}
         title={title}
         candidates={options}
         onSelect={onSelect}

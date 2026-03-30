@@ -625,9 +625,9 @@ func (qb *FileStore) find(ctx context.Context, id models.FileID) (models.File, e
 }
 
 // FindByPath returns the first file that matches the given path. Wildcard characters are supported.
-func (qb *FileStore) FindByPath(ctx context.Context, p string) (models.File, error) {
+func (qb *FileStore) FindByPath(ctx context.Context, p string, caseSensitive bool) (models.File, error) {
 
-	ret, err := qb.FindAllByPath(ctx, p)
+	ret, err := qb.FindAllByPath(ctx, p, caseSensitive)
 
 	if err != nil {
 		return nil, err
@@ -642,7 +642,7 @@ func (qb *FileStore) FindByPath(ctx context.Context, p string) (models.File, err
 
 // FindAllByPath returns all the files that match the given path.
 // Wildcard characters are supported.
-func (qb *FileStore) FindAllByPath(ctx context.Context, p string) ([]models.File, error) {
+func (qb *FileStore) FindAllByPath(ctx context.Context, p string, caseSensitive bool) ([]models.File, error) {
 	// separate basename from path
 	basename := filepath.Base(p)
 	dirName := filepath.Dir(p)
@@ -657,7 +657,7 @@ func (qb *FileStore) FindAllByPath(ctx context.Context, p string) ([]models.File
 	// like uses case-insensitive matching. Only use like if wildcards are used
 	q := qb.selectDataset().Prepared(true)
 
-	if strings.Contains(basename, "%") || strings.Contains(dirName, "%") {
+	if strings.Contains(basename, "%") || strings.Contains(dirName, "%") || !caseSensitive {
 		q = q.Where(
 			folderTable.Col("path").Like(dirName),
 			table.Col("basename").Like(basename),
@@ -695,7 +695,7 @@ func (qb *FileStore) allInPaths(q *goqu.SelectDataset, p []string) *goqu.SelectD
 // FindAllByPaths returns the all files that are within any of the given paths.
 // Returns all if limit is < 0.
 // Returns all files if p is empty.
-func (qb *FileStore) FindAllInPaths(ctx context.Context, p []string, limit, offset int) ([]models.File, error) {
+func (qb *FileStore) FindAllInPaths(ctx context.Context, p []string, includeZipContents bool, limit, offset int) ([]models.File, error) {
 	table := qb.table()
 	folderTable := folderTableMgr.table
 
@@ -705,6 +705,10 @@ func (qb *FileStore) FindAllInPaths(ctx context.Context, p []string, limit, offs
 	).Select(table.Col(idColumn))
 
 	q = qb.allInPaths(q, p)
+
+	if !includeZipContents {
+		q = q.Where(table.Col("zip_file_id").IsNull())
+	}
 
 	if limit > -1 {
 		q = q.Limit(uint(limit))
@@ -975,7 +979,7 @@ func (qb *FileStore) queryGroupedFields(ctx context.Context, options models.File
 		Megapixels float64
 		Size       int64
 	}{}
-	if err := qb.repository.queryStruct(ctx, aggregateQuery.toSQL(includeSortPagination), query.args, &out); err != nil {
+	if err := qb.repository.queryStruct(ctx, aggregateQuery.toSQL(includeSortPagination), query.allArgs(), &out); err != nil {
 		return nil, err
 	}
 
