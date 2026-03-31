@@ -1,6 +1,11 @@
 package transcoder
 
-import "github.com/stashapp/stash/pkg/ffmpeg"
+import (
+	"os"
+
+	"github.com/stashapp/stash/pkg/ffmpeg"
+	"github.com/stashapp/stash/pkg/logger"
+)
 
 type ScreenshotOptions struct {
 	OutputPath string
@@ -19,6 +24,9 @@ type ScreenshotOptions struct {
 	Verbosity ffmpeg.LogLevel
 
 	UseSelectFilter bool
+
+	// VideoCodec is the codec of the input video. Used to determine if hardware decode should be used.
+	VideoCodec string
 }
 
 func (o *ScreenshotOptions) setDefaults() {
@@ -60,6 +68,10 @@ func ScreenshotTime(input string, t float64, options ScreenshotOptions) ffmpeg.A
 	var args ffmpeg.Args
 	args = args.LogLevel(options.Verbosity)
 	args = args.Overwrite()
+
+	// Add hardware decode args before input if applicable
+	args = addHardwareDecodeArgs(args, options.VideoCodec)
+
 	args = args.Seek(t)
 
 	args = args.Input(input)
@@ -85,6 +97,21 @@ func ScreenshotTime(input string, t float64, options ScreenshotOptions) ffmpeg.A
 	return args
 }
 
+// addHardwareDecodeArgs adds hardware decode arguments for AV1 if configured.
+// Follows the same pattern as stream_segmented.go for consistency.
+func addHardwareDecodeArgs(args ffmpeg.Args, videoCodec string) ffmpeg.Args {
+	decodeMethod, decodeMethodExists := os.LookupEnv("FORCE_AV1_HW_DECODE_METHOD")
+	if !decodeMethodExists {
+		logger.Debug("FORCE_AV1_HW_DECODE_METHOD was not provided. Defaulting to automatic selection")
+	}
+
+	if videoCodec == "av1" && decodeMethodExists {
+		args = append(args, "-c:v", decodeMethod)
+	}
+
+	return args
+}
+
 // ScreenshotFrame uses the select filter to get a single frame from the video.
 // It is very slow and should only be used for files with very small duration in secs / frame count.
 func ScreenshotFrame(input string, frame int, options ScreenshotOptions) ffmpeg.Args {
@@ -93,6 +120,9 @@ func ScreenshotFrame(input string, frame int, options ScreenshotOptions) ffmpeg.
 	var args ffmpeg.Args
 	args = args.LogLevel(options.Verbosity)
 	args = args.Overwrite()
+
+	// Add hardware decode args before input if applicable
+	args = addHardwareDecodeArgs(args, options.VideoCodec)
 
 	args = args.Input(input)
 	args = args.VideoFrames(1)

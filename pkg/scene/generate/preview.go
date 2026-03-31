@@ -15,6 +15,22 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 )
 
+// getHardwareDecodeArgs returns hardware decode args for AV1 if configured.
+// Follows the same pattern as stream_segmented.go and screenshot.go for consistency.
+func getHardwareDecodeArgs(videoCodec string) []string {
+	decodeMethod, decodeMethodExists := os.LookupEnv("FORCE_AV1_HW_DECODE_METHOD")
+	if !decodeMethodExists {
+		logger.Debug("FORCE_AV1_HW_DECODE_METHOD was not provided. Defaulting to automatic selection")
+		return nil
+	}
+
+	if videoCodec == "av1" && decodeMethodExists {
+		return []string{"-c:v", decodeMethod}
+	}
+
+	return nil
+}
+
 const (
 	scenePreviewWidth        = 640
 	scenePreviewAudioBitrate = "128k"
@@ -33,6 +49,9 @@ type PreviewOptions struct {
 	Preset string
 
 	Audio bool
+
+	// VideoCodec is the codec of the input video. Used to determine if hardware decode should be used.
+	VideoCodec string
 }
 
 func getExcludeValue(videoDuration float64, v string) float64 {
@@ -129,6 +148,7 @@ func (g *Generator) previewVideo(input string, videoDuration float64, options Pr
 				OutputPath: chunkFile.Name(),
 				Audio:      options.Audio,
 				Preset:     options.Preset,
+				VideoCodec: options.VideoCodec,
 			}
 
 			if err := g.previewVideoChunk(lockCtx, input, chunkOptions, fallback, useVsync2); err != nil {
@@ -158,6 +178,7 @@ func (g *Generator) previewVideoSingle(input string, videoDuration float64, opti
 			OutputPath: tmpFn,
 			Audio:      options.Audio,
 			Preset:     options.Preset,
+			VideoCodec: options.VideoCodec,
 		}
 
 		return g.previewVideoChunk(lockCtx, input, chunkOptions, fallback, useVsync2)
@@ -170,6 +191,7 @@ type previewChunkOptions struct {
 	OutputPath string
 	Audio      bool
 	Preset     string
+	VideoCodec string
 }
 
 func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, options previewChunkOptions, fallback bool, useVsync2 bool) error {
@@ -193,6 +215,13 @@ func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, opt
 		videoArgs = append(videoArgs, "-vsync", "2")
 	}
 
+	// Add hardware decode args for AV1 if configured
+	extraInputArgs := g.FFMpegConfig.GetTranscodeInputArgs()
+	hwDecodeArgs := getHardwareDecodeArgs(options.VideoCodec)
+	if len(hwDecodeArgs) > 0 {
+		extraInputArgs = append(extraInputArgs, hwDecodeArgs...)
+	}
+
 	trimOptions := transcoder.TranscodeOptions{
 		OutputPath: options.OutputPath,
 		StartTime:  options.StartTime,
@@ -204,7 +233,7 @@ func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, opt
 		VideoCodec: ffmpeg.VideoCodecLibX264,
 		VideoArgs:  videoArgs,
 
-		ExtraInputArgs:  g.FFMpegConfig.GetTranscodeInputArgs(),
+		ExtraInputArgs:  extraInputArgs,
 		ExtraOutputArgs: g.FFMpegConfig.GetTranscodeOutputArgs(),
 	}
 

@@ -209,7 +209,7 @@ func (g *SpriteGenerator) generateSpriteImage() error {
 
 		for i := 0; i < g.Info.ChunkCount; i++ {
 			time := float64(i) * stepSize
-			img, err := g.g.SpriteScreenshot(context.TODO(), g.Info.VideoFile.Path, time, g.Config.SpriteSize, isPortrait)
+			img, err := g.g.SpriteScreenshot(context.TODO(), g.Info.VideoFile.Path, time, g.Config.SpriteSize, isPortrait, g.Info.VideoFile.VideoCodec)
 			if err != nil {
 				return err
 			}
@@ -227,7 +227,7 @@ func (g *SpriteGenerator) generateSpriteImage() error {
 				return errors.New("invalid frame number conversion")
 			}
 
-			img, err := g.g.SpriteScreenshotSlow(context.TODO(), g.Info.VideoFile.Path, int(frame), g.Config.SpriteSize)
+			img, err := g.g.SpriteScreenshotSlow(context.TODO(), g.Info.VideoFile.Path, int(frame), g.Config.SpriteSize, g.Info.VideoFile.VideoCodec)
 			if err != nil {
 				return err
 			}

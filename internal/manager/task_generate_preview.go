@@ -40,6 +40,9 @@ func (t *GeneratePreviewTask) Start(ctx context.Context) {
 			return
 		}
 
+		// Set VideoCodec in options for hardware decode
+		t.Options.VideoCodec = videoFile.VideoCodec
+
 		if err := t.generateVideo(videoChecksum, videoFile.VideoStreamDuration, videoFile.FrameRate); err != nil {
 			logger.Errorf("error generating preview: %v", err)
 			logErrorOutput(err)
