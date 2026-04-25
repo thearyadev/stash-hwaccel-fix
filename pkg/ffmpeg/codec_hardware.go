@@ -32,6 +32,8 @@ var (
 	VideoCodecRK264 = makeVideoCodec("H264 Rockchip MPP (rkmpp)", "h264_rkmpp")
 )
 
+const forceAV1HWDecodeMethodEnv = "FORCE_AV1_HW_DECODE_METHOD"
+
 const minHeight int = 480
 
 // Tests all (given) hardware codec's
@@ -181,6 +183,37 @@ func (f *FFMpeg) hwCanFullHWTranscode(ctx context.Context, codec VideoCodec, vf 
 	}
 
 	return true
+}
+
+// HasHWCodec returns true if the encoder passed hardware codec initialization.
+func (f *FFMpeg) HasHWCodec(codec VideoCodec) bool {
+	for _, c := range f.getHWCodecSupport() {
+		if c == codec {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HardwareDecodeArgs returns input arguments for opportunistic hardware decode.
+func HardwareDecodeArgs(videoCodec string, hwaccel string, outputFormat string) Args {
+	if hwaccel == "" {
+		hwaccel = "auto"
+	}
+
+	args := Args{"-hwaccel", hwaccel}
+	if outputFormat != "" {
+		args = append(args, "-hwaccel_output_format", outputFormat)
+	}
+
+	if videoCodec == "av1" {
+		if decodeMethod, ok := os.LookupEnv(forceAV1HWDecodeMethodEnv); ok && decodeMethod != "" {
+			args = append(args, "-c:v", decodeMethod)
+		}
+	}
+
+	return args
 }
 
 // Prepend input for hardware encoding only

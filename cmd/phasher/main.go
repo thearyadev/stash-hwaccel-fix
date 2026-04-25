@@ -116,7 +116,7 @@ func main() {
 
 	ffmpegPath, ffprobePath := getPaths()
 	encoder := ffmpeg.NewEncoder(ffmpegPath)
-	// don't need to InitHWSupport, phashing doesn't use hw acceleration
+	// Opportunistic hardware decode does not rely on InitHWSupport's encoder detection.
 	ffprobe := ffmpeg.NewFFProbe(ffprobePath)
 
 	for _, item := range args {

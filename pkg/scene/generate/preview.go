@@ -15,22 +15,6 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 )
 
-// getHardwareDecodeArgs returns hardware decode args for AV1 if configured.
-// Follows the same pattern as stream_segmented.go and screenshot.go for consistency.
-func getHardwareDecodeArgs(videoCodec string) []string {
-	decodeMethod, decodeMethodExists := os.LookupEnv("FORCE_AV1_HW_DECODE_METHOD")
-	if !decodeMethodExists {
-		logger.Debug("FORCE_AV1_HW_DECODE_METHOD was not provided. Defaulting to automatic selection")
-		return nil
-	}
-
-	if videoCodec == "av1" && decodeMethodExists {
-		return []string{"-c:v", decodeMethod}
-	}
-
-	return nil
-}
-
 const (
 	scenePreviewWidth        = 640
 	scenePreviewAudioBitrate = "128k"
@@ -195,6 +179,31 @@ type previewChunkOptions struct {
 }
 
 func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, options previewChunkOptions, fallback bool, useVsync2 bool) error {
+	if args, ok := g.previewVideoChunkHardwareArgs(fn, options, fallback, useVsync2); ok {
+		if err := g.generate(lockCtx, args); err == nil {
+			return nil
+		} else if lockCtx.Err() != nil {
+			return err
+		} else {
+			logger.Warnf("[generator] hardware preview encode failed for %s, retrying with software encoder: %v", fn, err)
+		}
+	}
+
+	args := g.previewVideoChunkSoftwareArgs(fn, options, fallback, useVsync2, true)
+	if err := g.generate(lockCtx, args); err != nil {
+		if lockCtx.Err() != nil {
+			return err
+		}
+
+		logger.Warnf("[generator] hardware preview decode failed for %s, retrying without hardware decode: %v", fn, err)
+		args = g.previewVideoChunkSoftwareArgs(fn, options, fallback, useVsync2, false)
+		return g.generate(lockCtx, args)
+	}
+
+	return nil
+}
+
+func (g Generator) previewVideoChunkSoftwareArgs(fn string, options previewChunkOptions, fallback bool, useVsync2 bool, hardwareDecode bool) ffmpeg.Args {
 	var videoFilter ffmpeg.VideoFilter
 	videoFilter = videoFilter.ScaleWidth(scenePreviewWidth)
 
@@ -215,11 +224,9 @@ func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, opt
 		videoArgs = append(videoArgs, "-vsync", "2")
 	}
 
-	// Add hardware decode args for AV1 if configured
 	extraInputArgs := g.FFMpegConfig.GetTranscodeInputArgs()
-	hwDecodeArgs := getHardwareDecodeArgs(options.VideoCodec)
-	if len(hwDecodeArgs) > 0 {
-		extraInputArgs = append(extraInputArgs, hwDecodeArgs...)
+	if hardwareDecode {
+		extraInputArgs = append(extraInputArgs, ffmpeg.HardwareDecodeArgs(options.VideoCodec, "", "")...)
 	}
 
 	trimOptions := transcoder.TranscodeOptions{
@@ -245,9 +252,81 @@ func (g Generator) previewVideoChunk(lockCtx *fsutil.LockContext, fn string, opt
 		trimOptions.AudioArgs = audioArgs
 	}
 
-	args := transcoder.Transcode(fn, trimOptions)
+	return transcoder.Transcode(fn, trimOptions)
+}
 
-	return g.generate(lockCtx, args)
+func (g Generator) previewVideoChunkHardwareArgs(fn string, options previewChunkOptions, fallback bool, useVsync2 bool) (ffmpeg.Args, bool) {
+	if g.Encoder == nil || (!g.Encoder.HasHWCodec(ffmpeg.VideoCodecN264) && !g.Encoder.HasHWCodec(ffmpeg.VideoCodecN264H)) {
+		return nil, false
+	}
+
+	var videoFilter ffmpeg.VideoFilter
+	videoFilter = videoFilter.Append(fmt.Sprintf("scale_cuda=%d:-2:format=yuv420p", scenePreviewWidth))
+
+	var videoArgs ffmpeg.Args
+	videoArgs = videoArgs.VideoFilter(videoFilter)
+	videoArgs = append(videoArgs,
+		"-profile:v", "high",
+		"-level", "4.2",
+		"-preset", previewNVENCPreset(options.Preset),
+		"-tune", "hq",
+		"-rc", "vbr",
+		"-cq", "21",
+		"-b:v", "0",
+		"-strict", "-2",
+	)
+
+	if useVsync2 {
+		videoArgs = append(videoArgs, "-vsync", "2")
+	}
+
+	extraInputArgs := g.FFMpegConfig.GetTranscodeInputArgs()
+	extraInputArgs = append(extraInputArgs, "-hwaccel_device", "0", "-threads", "1")
+	extraInputArgs = append(extraInputArgs, ffmpeg.HardwareDecodeArgs(options.VideoCodec, "cuda", "cuda")...)
+
+	trimOptions := transcoder.TranscodeOptions{
+		OutputPath: options.OutputPath,
+		StartTime:  options.StartTime,
+		Duration:   options.Duration,
+
+		XError:   !fallback,
+		SlowSeek: fallback,
+
+		VideoCodec: ffmpeg.VideoCodecN264,
+		VideoArgs:  videoArgs,
+
+		ExtraInputArgs:  extraInputArgs,
+		ExtraOutputArgs: g.FFMpegConfig.GetTranscodeOutputArgs(),
+	}
+
+	if options.Audio {
+		var audioArgs ffmpeg.Args
+		audioArgs = audioArgs.AudioBitrate(scenePreviewAudioBitrate)
+
+		trimOptions.AudioCodec = ffmpeg.AudioCodecAAC
+		trimOptions.AudioArgs = audioArgs
+	}
+
+	return transcoder.Transcode(fn, trimOptions), true
+}
+
+func previewNVENCPreset(preset string) string {
+	switch preset {
+	case "ultrafast":
+		return "p1"
+	case "veryfast":
+		return "p2"
+	case "fast":
+		return "p3"
+	case "slow":
+		return "p5"
+	case "slower":
+		return "p6"
+	case "veryslow":
+		return "p7"
+	default:
+		return "p4"
+	}
 }
 
 func (g Generator) generateConcatFile(chunkFiles []string) (fn string, err error) {
@@ -314,34 +393,52 @@ func (g Generator) PreviewWebp(ctx context.Context, input string, hash string) e
 
 func (g Generator) previewVideoToImage(input string) generateFn {
 	return func(lockCtx *fsutil.LockContext, tmpFn string) error {
-		var videoFilter ffmpeg.VideoFilter
-		videoFilter = videoFilter.ScaleWidth(scenePreviewWidth)
-		videoFilter = videoFilter.Fps(scenePreviewImageFPS)
+		args := g.previewVideoToImageArgs(input, tmpFn, true)
+		if err := g.generate(lockCtx, args); err != nil {
+			if lockCtx.Err() != nil {
+				return err
+			}
 
-		var videoArgs ffmpeg.Args
-		videoArgs = videoArgs.VideoFilter(videoFilter)
-
-		videoArgs = append(videoArgs,
-			"-lossless", "1",
-			"-q:v", "70",
-			"-compression_level", "6",
-			"-preset", "default",
-			"-loop", "0",
-			"-threads", "4",
-		)
-
-		encodeOptions := transcoder.TranscodeOptions{
-			OutputPath: tmpFn,
-
-			VideoCodec: ffmpeg.VideoCodecLibWebP,
-			VideoArgs:  videoArgs,
-
-			ExtraInputArgs:  g.FFMpegConfig.GetTranscodeInputArgs(),
-			ExtraOutputArgs: g.FFMpegConfig.GetTranscodeOutputArgs(),
+			logger.Warnf("[generator] hardware webp preview decode failed for %s, retrying without hardware decode: %v", input, err)
+			args = g.previewVideoToImageArgs(input, tmpFn, false)
+			return g.generate(lockCtx, args)
 		}
 
-		args := transcoder.Transcode(input, encodeOptions)
-
-		return g.generate(lockCtx, args)
+		return nil
 	}
+}
+
+func (g Generator) previewVideoToImageArgs(input string, tmpFn string, hardwareDecode bool) ffmpeg.Args {
+	var videoFilter ffmpeg.VideoFilter
+	videoFilter = videoFilter.ScaleWidth(scenePreviewWidth)
+	videoFilter = videoFilter.Fps(scenePreviewImageFPS)
+
+	var videoArgs ffmpeg.Args
+	videoArgs = videoArgs.VideoFilter(videoFilter)
+
+	videoArgs = append(videoArgs,
+		"-lossless", "1",
+		"-q:v", "70",
+		"-compression_level", "6",
+		"-preset", "default",
+		"-loop", "0",
+		"-threads", "4",
+	)
+
+	extraInputArgs := g.FFMpegConfig.GetTranscodeInputArgs()
+	if hardwareDecode {
+		extraInputArgs = append(extraInputArgs, ffmpeg.HardwareDecodeArgs("", "", "")...)
+	}
+
+	encodeOptions := transcoder.TranscodeOptions{
+		OutputPath: tmpFn,
+
+		VideoCodec: ffmpeg.VideoCodecLibWebP,
+		VideoArgs:  videoArgs,
+
+		ExtraInputArgs:  extraInputArgs,
+		ExtraOutputArgs: g.FFMpegConfig.GetTranscodeOutputArgs(),
+	}
+
+	return transcoder.Transcode(input, encodeOptions)
 }
